@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Python List Mission Control - AI Powered</title>
+    <style>
+        :root { --bg: #1e1e1e; --panel: #252526; --text: #d4d4d4; --blue: #007acc; --green: #4ec9b0; --orange: #ce9178; --border: #3e3e42; }
+        body { background: var(--bg); color: var(--text); font-family: 'Consolas', monospace; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #app { background: var(--panel); width: 95%; max-width: 900px; padding: 25px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .hidden { display: none; }
+        textarea { width: 100%; height: 300px; background: #1a1a1a; color: #9cdcfe; border: 1px solid var(--border); padding: 12px; font-family: inherit; font-size: 1.1rem; margin-top: 15px; outline: none; line-height: 1.5; }
+        .btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; margin-right: 10px; transition: 0.2s; }
+        .btn-run { background: var(--green); color: #1e1e1e; }
+        .btn-next { background: var(--blue); color: #fff; }
+        #terminal { margin-top: 20px; padding: 15px; background: #000; border-radius: 4px; font-size: 0.9rem; min-height: 60px; border-left: 4px solid var(--blue); white-space: pre-wrap; }
+        .expected-output { background: #121212; border: 1px dashed #555; padding: 10px; margin: 10px 0; font-size: 0.9rem; color: #aaa; }
+        .progress-bar { background: #333; height: 8px; border-radius: 4px; margin-bottom: 10px; }
+        .progress-fill { background: var(--blue); height: 100%; width: 0%; transition: 0.5s; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="mission-screen">
+        <div id="context-area" style="font-size: 1.4rem; font-weight: bold; color: var(--blue); margin-bottom: 5px;"></div>
+        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+        <div id="instruction-text" style="font-size: 1.1rem; background: #2d2d2d; padding: 15px; border-radius: 4px; border-left: 4px solid var(--orange); line-height: 1.4;"></div>
+        <div id="output-req" class="expected-output"></div>
+        
+        <textarea id="editor" spellcheck="false" placeholder="# Previous lines are saved. Write the next command here..."></textarea>
+
+        <div style="margin-top: 15px;">
+            <button class="btn btn-run" id="run-btn" onclick="validateWithAI()">AI Verify</button>
+            <button id="next-btn" class="btn btn-next hidden" onclick="nextStep()">Correct! Next Step</button>
+        </div>
+        <div id="terminal">> System ready. Enter your Python code above.</div>
+    </div>
+</div>
+
+<script>
+    const apiKey = "AIzaSyBK7XboJAvKfPbusvuuBhaKRHAHuwJaDpA";
+    
+    const missions = [
+        {
+            context: "1. Library Catalog System",
+            steps: [
+                { instr: "Initialize: Create a list named 'book_titles' with: \"1984\", \"Dune\", \"The Hobbit\", \"Python Guide\", \"Dune\", \"Dracula\".", output: "No output yet.", sol: "book_titles = [\"1984\", \"Dune\", \"The Hobbit\", \"Python Guide\", \"Dune\", \"Dracula\"]" },
+                { instr: "Slicing: Create 'staff_picks' by slicing the first 2 books and print it.", output: "Staff Picks: ['1984', 'Dune']", sol: "staff_picks = book_titles[:2]\nprint(f'Staff Picks: {staff_picks}')" },
+                { instr: "Analysis: Print total books, count of 'Dune', and if 'The Hobbit' is available.", output: "Total books: 6\nCount of 'Dune': 2\nIs 'The Hobbit' available? True", sol: "print(f'Total books: {len(book_titles)}')\nprint(f'Count of \\'Dune\\': {book_titles.count(\"Dune\")}')\nprint(f'Is \\'The Hobbit\\' available? {\"The Hobbit\" in book_titles}')" }
+            ]
+        },
+        {
+            context: "2. Olympic Swimming Times",
+            steps: [
+                { instr: "Initialize 'race_times' with: 52.5, 48.0, 50.2, 47.5, 55.0, 48.0.", output: "No output yet.", sol: "race_times = [52.5, 48.0, 50.2, 47.5, 55.0, 48.0]" },
+                { instr: "Slicing: Create 'heat_a_times' (first 3) and print it.", output: "Heat A times: [52.5, 48.0, 50.2]", sol: "heat_a_times = race_times[:3]\nprint(f'Heat A times: {heat_a_times}')" }
+            ]
+        }
+        // ... További feladatok (3-21) a dokumentumod alapján ide kerülnek
+    ];
+
+    let mIdx = 0, sIdx = 0;
+
+    function loadStep() {
+        const m = missions[mIdx];
+        const s = m.steps[sIdx];
+        document.getElementById('context-area').innerText = m.context;
+        document.getElementById('instruction-text').innerText = s.instr;
+        document.getElementById('output-req').innerHTML = "<b>Expected Output:</b><br>" + s.output;
+        document.getElementById('next-btn').classList.add('hidden');
+        
+        const totalSteps = missions.reduce((acc, mission) => acc + mission.steps.length, 0);
+        const currentProgress = (missions.slice(0, mIdx).reduce((acc, mission) => acc + mission.steps.length, 0) + sIdx) / totalSteps * 100;
+        document.getElementById('progress-fill').style.width = currentProgress + "%";
+    }
+
+    async function validateWithAI() {
+        const code = document.getElementById('editor').value;
+        const step = missions[mIdx].steps[sIdx];
+        const terminal = document.getElementById('terminal');
+        const btn = document.getElementById('run-btn');
+
+        btn.disabled = true;
+        terminal.innerHTML = "<span style='color:var(--orange)'>> AI is reviewing your code...</span>";
+
+        const prompt = `You are a Python teacher. 
+        Student Code:
+        ${code}
+        
+        Task: ${step.instr}
+        Expected Output to see in terminal: ${step.output}
+        
+        Requirements:
+        1. Check syntax (especially nested quotes in f-strings: f' "Dune" ' is correct, f' 'Dune' ' is wrong).
+        2. Verify the logic for this specific step.
+        
+        Respond only in JSON: {"success": boolean, "feedback": "Short feedback message"}`;
+
+        try {
+            const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+            const data = await resp.json();
+            const textResp = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+            const result = JSON.parse(textResp);
+
+            if (result.success) {
+                terminal.innerHTML = `<span style='color:var(--green)'>> AI: ${result.feedback}</span>`;
+                document.getElementById('next-btn').classList.remove('hidden');
+            } else {
+                terminal.innerHTML = `<span style='color:#f44747'>> AI Correction: ${result.feedback}</span>`;
+            }
+        } catch (e) {
+            terminal.innerText = "> AI connection failed. Check your console.";
+            console.error(e);
+        }
+        btn.disabled = false;
+    }
+
+    function nextStep() {
+        sIdx++;
+        if (sIdx >= missions[mIdx].steps.length) {
+            sIdx = 0;
+            mIdx++;
+        }
+        if (mIdx >= missions.length) {
+            document.getElementById('terminal').innerHTML = "<h1>MISSION ACCOMPLISHED! All list tasks cleared.</h1>";
+        } else {
+            loadStep();
+        }
+    }
+
+    window.onload = loadStep;
+</script>
+</body>
+</html>
